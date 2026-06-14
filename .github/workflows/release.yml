@@ -60,17 +60,21 @@ jobs:
       - name: Import code-signing certificate (macOS)
         if: runner.os == 'macOS' && env.MACOS_CERTIFICATE != ''
         run: |
+          set -euo pipefail
           KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
           echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN_PATH" \
-            -P "$MACOS_CERTIFICATE_PWD" -T /usr/bin/codesign
+            -P "$MACOS_CERTIFICATE_PWD" -T /usr/bin/codesign -T /usr/bin/security
           security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          # Add to the search list so codesign can find the identity.
+          # Make the keychain the default and add it to the search list so codesign sees it.
+          security default-keychain -s "$KEYCHAIN_PATH"
           security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | sed s/\"//g)
           rm "$RUNNER_TEMP/cert.p12"
+          echo "== code-signing identities visible to codesign (use one of these names for MACOS_SIGN_IDENTITY) =="
+          security find-identity -v -p codesigning
 
       - name: Build, sign and notarize (macOS)
         if: runner.os == 'macOS' && env.MACOS_CERTIFICATE != ''
