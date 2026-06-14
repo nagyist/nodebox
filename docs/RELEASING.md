@@ -61,8 +61,13 @@ ant dist-win            # Windows: .msi (requires WiX Toolset v3 on PATH)
 Override the JDK used for packaging with `-Djpackage=/path/to/jdk/bin/jpackage`; by default
 it uses the JDK running Ant (`${java.home}/bin/jpackage`).
 
-## Known follow-up: bundled ffmpeg is Intel-only
+## Bundled ffmpeg
 
-`platform/mac/bin/ffmpeg` is an `x86_64` binary. The app itself is now native arm64, but
-video export shells out to this ffmpeg, which still needs Rosetta. Replace it with an
-arm64 (or universal) ffmpeg build to make NodeBox fully Rosetta-free ahead of macOS 28.
+`platform/mac/bin/ffmpeg` is a **static arm64** build (ffmpeg 8.1 from
+[osxexperts.net](https://www.osxexperts.net), the Apple Silicon counterpart to the
+evermeet.cx Intel builds). It links only system frameworks, so it bundles without extra
+dylibs. To update it, download the latest `ffmpegNNarm.zip`, confirm it's self-contained
+(`otool -L ffmpeg` shows only `/usr/lib` and `/System`), and replace the file. It must
+keep the libx264 (h264/mp4) and libvpx (webm) encoders that NodeBox invokes.
+
+The Windows (`platform/windows/bin/ffmpeg.exe`) and Linux binaries are still x86_64.
