@@ -7,6 +7,10 @@ import java.util.ArrayList;
 import java.util.Objects;
 
 public class PackageSigner {
+    // Overridable so CI can pass the identity that was imported into the runner's keychain.
+    private static final String IDENTITY = System.getenv().getOrDefault(
+            "MACOS_SIGN_IDENTITY", "Developer ID Application: Frederik De Bleser (5X78EYG9RH)");
+
     public static void main(String[] args) {
         File projectDir = new File(".");
         scanRecursive(new File("dist/mac"), projectDir);
@@ -29,7 +33,7 @@ public class PackageSigner {
         ArrayList<String> command = new ArrayList<>();
         command.add("codesign");
         command.add("--sign");
-        command.add("Developer ID Application: Frederik De Bleser (5X78EYG9RH)");
+        command.add(IDENTITY);
         command.add("--timestamp");
         command.add("--deep");
         command.add("-vvvv");
@@ -41,9 +45,12 @@ public class PackageSigner {
         command.add(f.getAbsolutePath());
         System.out.println("command = " + command);
         try {
-            new ProcessBuilder().directory(f.getParentFile()).inheritIO().command(command).start().waitFor();
+            int exitCode = new ProcessBuilder().directory(f.getParentFile()).inheritIO().command(command).start().waitFor();
+            if (exitCode != 0) {
+                throw new RuntimeException("codesign failed (exit " + exitCode + ") for " + f.getAbsolutePath());
+            }
         } catch (InterruptedException | IOException e) {
-            e.printStackTrace();
+            throw new RuntimeException("Failed to run codesign for " + f.getAbsolutePath(), e);
         }
     }
 }

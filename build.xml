@@ -24,6 +24,9 @@
         <property name="libraries" value="libraries"/>
         <property name="examples" value="examples"/>
         <property name="bin" value="bin"/>
+        <!-- jpackage from the JDK running this build; produces a native app for that JDK's architecture.
+             Override with -Djpackage=/path/to/bin/jpackage to target a different JDK. -->
+        <property name="jpackage" location="${java.home}/bin/jpackage"/>
         <property name="build" value="build"/>
         <property name="build.prod" location="${build}/prod"/>
         <property name="build.test" location="${build}/test"/>
@@ -239,7 +242,7 @@
 
 
     <target name="dist-mac" depends="resources">
-        <exec executable="/Library/Java/JavaVirtualMachines/jdk-14.0.1.jdk/Contents/Home/bin/jpackage" os="Mac OS X">
+        <exec executable="${jpackage}" os="Mac OS X">
             <arg line="-i ${dist.unpacked}"/>
             <arg line="-d ${dist.mac}"/>
             <arg line="-n NodeBox"/>
@@ -259,7 +262,7 @@
         <javac srcdir="${dev}" destdir="${build.dev}" deprecation="yes" includeantruntime="false"/>
         <java classname="nodebox.PackageSigner" fork="true" classpath="${build.dev}"/>
         <!-- Create a DMG file -->
-        <exec executable="/Library/Java/JavaVirtualMachines/jdk-14.0.1.jdk/Contents/Home/bin/jpackage" os="Mac OS X">
+        <exec executable="${jpackage}" os="Mac OS X">
             <arg line="-n NodeBox"/>
             <arg line="-d ${dist.mac}"/>
             <arg line="--app-version ${nodebox.version}"/>

@@ -1,176 +1,59 @@
 package nodebox;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
+/**
+ * Submits a DMG to Apple's notary service and staples the resulting ticket.
+ *
+ * <p>Uses {@code notarytool} (altool's notarization service was retired by Apple in
+ * November 2023). Credentials are read from the environment so the same command runs
+ * locally and in CI:
+ * <ul>
+ *     <li>{@code APPLE_ID} – Apple ID email</li>
+ *     <li>{@code APPLE_APP_SPECIFIC_PASSWORD} – app-specific password for that Apple ID</li>
+ *     <li>{@code APPLE_TEAM_ID} – Developer Team ID</li>
+ * </ul>
+ */
 public class Notarizer {
-    private static final int SECONDS = 1000;
-    private static final Pattern statusPattern = Pattern.compile("^\\s*([\\w\\s]+):\\s(.*)$");
 
-    static class NotarizationStatus {
-        String status;
-        HashMap<String, String> properties;
-
-        public NotarizationStatus(String rawText) {
-            properties = new HashMap<>();
-            String[] lines = rawText.split("\\n");
-            for (String line : lines) {
-                Matcher m = statusPattern.matcher(line);
-                if (m.matches()) {
-                    String key = m.group(1);
-                    String value = m.group(2);
-                    if (key.equals("Status")) {
-                        status = value;
-                    }
-                    properties.put(key, value);
-                }
-            }
-        }
-
-        @Override
-        public String toString() {
-            return "NotarizationStatus{" +
-                    "status='" + status + '\'' +
-                    ", properties=" + properties +
-                    '}';
-        }
-    }
-
-    private static String runShellCommand(List<String> command) throws IOException, InterruptedException {
-        Process process = new ProcessBuilder().command(command).start();
-        BufferedReader reader =
-                new BufferedReader(new InputStreamReader(process.getInputStream()));
-        process.waitFor();
-        StringBuilder builder = new StringBuilder();
-        String line;
-        while ((line = reader.readLine()) != null) {
-            builder.append(line);
-            builder.append('\n');
-        }
-        return builder.toString();
-    }
-
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException, InterruptedException {
         File dmgFile = new File(args[0]);
         if (!dmgFile.exists()) {
-            System.out.println("File " + args[0] + " does not exist.");
-            return;
+            throw new RuntimeException("File " + args[0] + " does not exist.");
+        }
 
-        }
-        String requestUUID = startNotarization(dmgFile);
-        boolean success = waitForNotarization(requestUUID);
-        if (success) {
-            stapleNotarization(dmgFile);
-        }
+        String appleId = requireEnv("APPLE_ID");
+        String password = requireEnv("APPLE_APP_SPECIFIC_PASSWORD");
+        String teamId = requireEnv("APPLE_TEAM_ID");
+
+        // submit --wait blocks until the notary service finishes and exits non-zero on rejection.
+        run("xcrun", "notarytool", "submit", dmgFile.getAbsolutePath(),
+                "--apple-id", appleId,
+                "--password", password,
+                "--team-id", teamId,
+                "--wait");
+
+        // Staple the ticket so the DMG validates offline.
+        run("xcrun", "stapler", "staple", dmgFile.getAbsolutePath());
     }
 
-    private static String startNotarization(File dmgFile) {
-//        ArrayList<String> command = new ArrayList<>();
-//        command.add("cat");
-//        command.add("_notarize_output.txt");
-        ArrayList<String> command = new ArrayList<>();
-        command.add("xcrun");
-        command.add("altool");
-        command.add("--notarize-app");
-        command.add("--primary-bundle-id");
-        command.add("be.emrg.nodebox");
-        command.add("--username");
-        command.add("frederik@debleser.be");
-        command.add("--password");
-        command.add("@keychain:Developer-altool");
-        command.add("--file");
-        command.add(dmgFile.getAbsolutePath());
-        try {
-            String result = runShellCommand(command);
-            Pattern r = Pattern.compile("RequestUUID\\s+=\\s+([0-9a-f\\-]+)");
-            Matcher m = r.matcher(result);
-            if (m.find()) {
-                return m.group(1);
-            } else {
-                System.out.println("Could not find RequestUUID in return value");
-                System.out.println(result);
-                throw new RuntimeException("Could not find RequestUUID in return value.");
-            }
-        } catch (InterruptedException | IOException e) {
-            e.printStackTrace();
-            throw new RuntimeException("Exception when running xcrun altool --notarize-app.", e);
+    private static String requireEnv(String name) {
+        String value = System.getenv(name);
+        if (value == null || value.isEmpty()) {
+            throw new RuntimeException("Missing required environment variable: " + name);
         }
+        return value;
     }
 
-    private static boolean waitForNotarization(String requestUUID) {
-        NotarizationStatus status;
-        do {
-            status = getNotarizationStatus(requestUUID);
-            System.out.println(status);
-            if (!status.status.equals("in progress")) {
-                break;
-            }
-            try {
-                Thread.sleep(30 * SECONDS);
-            } catch (InterruptedException ignored) {
-            }
-        } while (true);
-
-        if (status.status.equals("success")) {
-            return true;
-        } else if (status.status.equals("invalid")) {
-            System.out.println("Notarization came back as invalid. Check the log files at:");
-            System.out.println(status.properties.get("LogFileURL"));
-            return false;
-        } else {
-            System.out.println(status);
-            return false;
+    private static void run(String... command) throws IOException, InterruptedException {
+        List<String> cmd = new ArrayList<>(List.of(command));
+        System.out.println("command = " + cmd);
+        int exitCode = new ProcessBuilder(cmd).inheritIO().start().waitFor();
+        if (exitCode != 0) {
+            throw new RuntimeException(cmd.get(1) + " " + cmd.get(2) + " failed (exit " + exitCode + ").");
         }
     }
-
-    private static NotarizationStatus getNotarizationStatus(String requestUUID) {
-        ArrayList<String> command = new ArrayList<>();
-//        command.add("cat");
-//        command.add("_notarize_in_progress.txt");
-
-        command.add("xcrun");
-        command.add("altool");
-
-        command.add("--username");
-        command.add("frederik@debleser.be");
-        command.add("--password");
-        command.add("@keychain:Developer-altool");
-        command.add("--notarization-info");
-        command.add(requestUUID);
-
-        try {
-            String result = runShellCommand(command);
-            return new NotarizationStatus(result);
-        } catch (IOException | InterruptedException e) {
-            e.printStackTrace();
-            throw new RuntimeException("Exception when running xcrun altool --notarization-info.", e);
-        }
-    }
-
-    private static void stapleNotarization(File dmgFile) {
-        ArrayList<String> command = new ArrayList<>();
-//        command.add("cat");
-//        command.add("_notarize_staple.txt");
-        command.add("xcrun");
-        command.add("stapler");
-        command.add("staple");
-        command.add(dmgFile.getAbsolutePath());
-
-        try {
-            String result = runShellCommand(command);
-            System.out.println(result);
-        } catch (IOException | InterruptedException e) {
-            e.printStackTrace();
-            throw new RuntimeException("Exception when running xcrun stapler staple.", e);
-        }
-    }
-
-
 }
