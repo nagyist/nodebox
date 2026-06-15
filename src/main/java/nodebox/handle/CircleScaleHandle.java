@@ -53,24 +53,28 @@ public class CircleScaleHandle extends AbstractHandle {
     }
 
     public void draw(GraphicsContext ctx) {
-        Point center = getCenter();
-        double x = center.x;
-        double y = center.y;
-        double radius = getRadius();
+        Point center = toScreen(getCenter());
+        // The circle is a real document measurement (the shape's radius), so it scales with the
+        // view; the grab dot is screen-sized.
+        double radius = getRadius() * viewScale;
         ctx.nofill();
         ctx.ellipsemode(GraphicsContext.EllipseMode.CENTER);
         ctx.stroke(HANDLE_COLOR);
-        ctx.ellipse(x, y, radius * 2, radius * 2);
-        if (pt != null)
-            drawDot(ctx, pt.x, pt.y);
+        ctx.ellipse(center.x, center.y, radius * 2, radius * 2);
+        if (pt != null) {
+            Point sp = toScreen(pt);
+            drawDot(ctx, sp.x, sp.y);
+        }
     }
 
     @Override
     public boolean mousePressed(Point pt) {
         this.pt = null;
-        double radius = getRadius();
-        Point center = getCenter();
-        float d = (float) Geometry.distance(center.x, center.y, pt.x, pt.y);
+        // Grab the circle edge within a constant screen distance, so it stays grabbable at any zoom.
+        double radius = getRadius() * viewScale;
+        Point center = toScreen(getCenter());
+        Point sm = toScreen(pt);
+        float d = (float) Geometry.distance(center.x, center.y, sm.x, sm.y);
         dragging = (radius - 4 <= d && d <= radius + 4);
         return dragging;
     }
@@ -103,8 +107,13 @@ public class CircleScaleHandle extends AbstractHandle {
         double x = center.x;
         double y = center.y;
         double radius = getRadius();
-        float d = (float) Geometry.distance(x, y, pt.x, pt.y);
-        if (radius - 4 <= d && d <= radius + 4) {
+        // Proximity to the circle edge is judged on screen (constant pixels); the resulting dot
+        // sits on the circle in document space and is projected when drawn.
+        Point sc = toScreen(center);
+        Point sm = toScreen(pt);
+        float d = (float) Geometry.distance(sc.x, sc.y, sm.x, sm.y);
+        double screenRadius = radius * viewScale;
+        if (screenRadius - 4 <= d && d <= screenRadius + 4) {
             float a = (float) Geometry.angle(x, y, pt.x, pt.y);
             double[] xy;
             xy = Geometry.coordinates(x, y, radius, a);

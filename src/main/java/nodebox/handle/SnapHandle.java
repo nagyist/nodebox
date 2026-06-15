@@ -23,8 +23,12 @@ public class SnapHandle extends AbstractHandle {
         for (int i = -100; i < 100; i++) {
             double x = -snapX + (i * distance);
             double y = -snapY + (i * distance);
-            p.line(x, -1000, x, 1000);
-            p.line(-1000, y, 1000, y);
+            Point v0 = toScreen(x, -1000);
+            Point v1 = toScreen(x, 1000);
+            Point h0 = toScreen(-1000, y);
+            Point h1 = toScreen(1000, y);
+            p.line(v0.x, v0.y, v1.x, v1.y);
+            p.line(h0.x, h0.y, h1.x, h1.y);
         }
         ctx.drawpath(p);
     }

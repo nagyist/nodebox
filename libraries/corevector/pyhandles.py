@@ -44,8 +44,11 @@ class ReflectHandle(CombinedHandle):
         a = self.getValue("angle")
         x1, y1 = coordinates(x, y, -1000, a)
         x2, y2 = coordinates(x, y, 1000, a)
+        # Handles draw in screen space, so project the axis endpoints through the view transform.
+        s1 = self.toScreen(x1, y1)
+        s2 = self.toScreen(x2, y2)
         ctx.stroke(self.HANDLE_COLOR)
-        ctx.line(x1, y1, x2, y2)
+        ctx.line(s1.x, s1.y, s2.x, s2.y)
         CombinedHandle.draw(self, ctx)
 
 

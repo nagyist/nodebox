@@ -9,6 +9,10 @@ public class TranslateHandle extends AbstractHandle {
 
     public static final int HANDLE_LENGTH = 100;
 
+    // Half-thickness (in screen pixels) of the grab band around each axis line, so the whole
+    // line can be dragged, not just its arrow tip.
+    private static final int AXIS_PADDING = 6;
+
     private enum DragState {
         NONE, CENTER, HORIZONTAL, VERTICAL
     }
@@ -16,7 +20,6 @@ public class TranslateHandle extends AbstractHandle {
     private String translateName;
     private double px, py;
     private double ox, oy;
-    private float handleLength = HANDLE_LENGTH;
     private DragState dragState = DragState.NONE;
 
     public TranslateHandle() {
@@ -34,7 +37,12 @@ public class TranslateHandle extends AbstractHandle {
     }
 
     public void draw(GraphicsContext ctx) {
-        Point cp = (Point) getValue(translateName);
+        // The gizmo's reach and arrow heads are UI chrome, drawn at a constant pixel size around
+        // the projected document position.
+        double handleLength = HANDLE_LENGTH;
+        double tip = 3;
+        double barb = 5;
+        Point cp = toScreen((Point) getValue(translateName));
         double x = cp.x;
         double y = cp.y;
         ctx.rectmode(GraphicsContext.RectMode.CENTER);
@@ -51,47 +59,50 @@ public class TranslateHandle extends AbstractHandle {
             ctx.line(x, y, x, y + handleLength);
 
             // Vertical arrow
-            p.moveto(x, y + handleLength + 3);
-            p.lineto(x - 5, y + handleLength - 3);
-            p.lineto(x + 5, y + handleLength - 3);
+            p.moveto(x, y + handleLength + tip);
+            p.lineto(x - barb, y + handleLength - tip);
+            p.lineto(x + barb, y + handleLength - tip);
 
             // Horizontal arrow
-            p.moveto(x + handleLength + 3, y);
-            p.lineto(x + handleLength - 3, y - 5);
-            p.lineto(x + handleLength - 3, y + 5);
+            p.moveto(x + handleLength + tip, y);
+            p.lineto(x + handleLength - tip, y - barb);
+            p.lineto(x + handleLength - tip, y + barb);
         } else if (dragState == DragState.CENTER) {
-            ctx.line(px, py, x, y);
+            Point ps = toScreen(px, py);
+            ctx.line(ps.x, ps.y, x, y);
             drawDot(ctx, x, y);
         } else if (dragState == DragState.HORIZONTAL) {
+            double psx = toScreen(px, py).x;
             double x0, x1;
-            ctx.line(px - handleLength, y, x + handleLength, y);
-            if (x + handleLength > px - handleLength) {
+            ctx.line(psx - handleLength, y, x + handleLength, y);
+            if (x + handleLength > psx - handleLength) {
                 // arrow points right
-                x0 = x + handleLength + 3;
-                x1 = x + handleLength - 3;
+                x0 = x + handleLength + tip;
+                x1 = x + handleLength - tip;
             } else {
                 // arrow points left
-                x0 = x + handleLength - 3;
-                x1 = x + handleLength + 3;
+                x0 = x + handleLength - tip;
+                x1 = x + handleLength + tip;
             }
             p.moveto(x0, y);
-            p.lineto(x1, y - 5);
-            p.lineto(x1, y + 5);
+            p.lineto(x1, y - barb);
+            p.lineto(x1, y + barb);
         } else if (dragState == DragState.VERTICAL) {
+            double psy = toScreen(px, py).y;
             double y0, y1;
-            ctx.line(x, py - handleLength, x, y + handleLength);
-            if (y + handleLength > py - handleLength) {
+            ctx.line(x, psy - handleLength, x, y + handleLength);
+            if (y + handleLength > psy - handleLength) {
                 // arrow points down
-                y0 = y + handleLength + 3;
-                y1 = y + handleLength - 3;
+                y0 = y + handleLength + tip;
+                y1 = y + handleLength - tip;
             } else {
                 // arrow points up
-                y0 = y + handleLength - 3;
-                y1 = y + handleLength + 3;
+                y0 = y + handleLength - tip;
+                y1 = y + handleLength + tip;
             }
             p.moveto(x, y0);
-            p.lineto(x - 5, y1);
-            p.lineto(x + 5, y1);
+            p.lineto(x - barb, y1);
+            p.lineto(x + barb, y1);
         }
         ctx.nostroke();
         ctx.draw(p);
@@ -99,22 +110,28 @@ public class TranslateHandle extends AbstractHandle {
 
     @Override
     public boolean mousePressed(Point pt) {
+        double handleLength = HANDLE_LENGTH;
         px = pt.getX();
         py = pt.getY();
 
         Point cp = (Point) getValue(translateName);
-        double x = ox = cp.x;
-        double y = oy = cp.y;
+        ox = cp.x;
+        oy = cp.y;
 
-        Rect centerRect = createHitRectangle(x, y);
-        Rect horRect = createHitRectangle(x + handleLength, y);
-        Rect vertRect = createHitRectangle(x, y + handleLength);
+        Point sm = toScreen(pt);
+        Point cs = toScreen(cp);
+        // The center grabs for free (two-axis) movement. The horizontal and vertical regions are
+        // padded bands covering the whole axis line up to and including the arrow tip, so you can
+        // grab anywhere along a line to constrain movement to that axis.
+        Rect centerRect = createHitRectangle(cs.x, cs.y);
+        Rect horRect = new Rect(cs.x, cs.y - AXIS_PADDING, handleLength + AXIS_PADDING, 2 * AXIS_PADDING);
+        Rect vertRect = new Rect(cs.x - AXIS_PADDING, cs.y, 2 * AXIS_PADDING, handleLength + AXIS_PADDING);
 
-        if (centerRect.contains(pt))
+        if (centerRect.contains(sm))
             dragState = DragState.CENTER;
-        else if (horRect.contains(pt))
+        else if (horRect.contains(sm))
             dragState = DragState.HORIZONTAL;
-        else if (vertRect.contains(pt))
+        else if (vertRect.contains(sm))
             dragState = DragState.VERTICAL;
 
         return (dragState != DragState.NONE);

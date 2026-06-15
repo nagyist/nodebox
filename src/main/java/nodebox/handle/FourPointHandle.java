@@ -46,19 +46,27 @@ public class FourPointHandle extends AbstractHandle {
         double right = cx + width / 2;
         double top = cy - height / 2;
         double bottom = cy + height / 2;
+        // The corners sit at document positions; the box outline is a real document measurement,
+        // so it scales with the view while the corner dots and stroke stay screen-sized.
+        Point sCenter = toScreen(cx, cy);
+        Point sTopLeft = toScreen(left, top);
+        Point sTopRight = toScreen(right, top);
+        Point sBottomRight = toScreen(right, bottom);
+        Point sBottomLeft = toScreen(left, bottom);
         Path cornerPath = new Path();
         cornerPath.setFillColor(HANDLE_COLOR);
         cornerPath.setStrokeWidth(0);
-        drawDot(cornerPath, left, top);
-        drawDot(cornerPath, right, top);
-        drawDot(cornerPath, right, bottom);
-        drawDot(cornerPath, left, bottom);
-        drawDot(cornerPath, cx, cy);
+        drawDot(cornerPath, sTopLeft.x, sTopLeft.y);
+        drawDot(cornerPath, sTopRight.x, sTopRight.y);
+        drawDot(cornerPath, sBottomRight.x, sBottomRight.y);
+        drawDot(cornerPath, sBottomLeft.x, sBottomLeft.y);
+        drawDot(cornerPath, sCenter.x, sCenter.y);
         ctx.draw(cornerPath);
         Path strokePath = new Path();
         strokePath.setFillColor(null);
         strokePath.setStrokeColor(HANDLE_COLOR);
-        strokePath.rect(cx, cy, width, height);
+        strokePath.setStrokeWidth(1);
+        strokePath.rect(sCenter.x, sCenter.y, width * viewScale, height * viewScale);
         ctx.draw(strokePath);
     }
 
@@ -78,19 +86,17 @@ public class FourPointHandle extends AbstractHandle {
         double top = ocy - oheight / 2;
         double bottom = ocy + oheight / 2;
 
-        Rect topLeft = createHitRectangle(left, top);
-        Rect topRight = createHitRectangle(right, top);
-        Rect bottomLeft = createHitRectangle(left, bottom);
-        Rect bottomRight = createHitRectangle(right, bottom);
+        // Corners are grabbed in screen space (constant pixel target); the center is a document
+        // region (drag anywhere inside the shape's bounds), so it is tested in document space.
         Rect center = new Rect(left, top, owidth, oheight);
 
-        if (topLeft.contains(pt)) {
+        if (hitsHandle(left, top, pt)) {
             dragState = DragState.TOP_LEFT;
-        } else if (topRight.contains(pt)) {
+        } else if (hitsHandle(right, top, pt)) {
             dragState = DragState.TOP_RIGHT;
-        } else if (bottomLeft.contains(pt)) {
+        } else if (hitsHandle(left, bottom, pt)) {
             dragState = DragState.BOTTOM_LEFT;
-        } else if (bottomRight.contains(pt)) {
+        } else if (hitsHandle(right, bottom, pt)) {
             dragState = DragState.BOTTOM_RIGHT;
         } else if (center.contains(pt)) {
             dragState = DragState.CENTER;

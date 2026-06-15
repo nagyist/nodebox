@@ -19,6 +19,11 @@ public abstract class AbstractHandle implements Handle {
     private HandleDelegate delegate;
     private boolean visible = true;
     private boolean combinesEdits = false;
+    // The view transform (document -> screen). Handles draw in screen space, so they project
+    // the document coordinates they receive through this transform.
+    protected double viewX = 0.0;
+    protected double viewY = 0.0;
+    protected double viewScale = 1.0;
 
     public boolean isVisible() {
         return visible;
@@ -26,6 +31,24 @@ public abstract class AbstractHandle implements Handle {
 
     public void setVisible(boolean visible) {
         this.visible = visible;
+    }
+
+    public void setViewTransform(double viewX, double viewY, double viewScale) {
+        this.viewX = viewX;
+        this.viewY = viewY;
+        this.viewScale = viewScale;
+    }
+
+    /**
+     * Project a document point into screen space, where handles are drawn and hit-tested.
+     * Public so handles written in scripting languages (e.g. Jython) can project too.
+     */
+    public Point toScreen(Point p) {
+        return new Point(viewX + viewScale * p.x, viewY + viewScale * p.y);
+    }
+
+    public Point toScreen(double x, double y) {
+        return new Point(viewX + viewScale * x, viewY + viewScale * y);
     }
 
     //// Stub implementations of event handling ////
@@ -150,17 +173,34 @@ public abstract class AbstractHandle implements Handle {
     }
 
     /**
-     * Create a rectangle that can be used to test if a point is inside of it. (hit testing)
-     * The X and Y coordinates form the center of a rectangle that represents the handle size.
+     * Create a screen-space rectangle that can be used to test if a point is inside of it.
+     * (hit testing) The X and Y coordinates form the center of a rectangle the size of the handle.
+     * <p/>
+     * The coordinates are in screen space, so project the handle position with {@link #toScreen}
+     * (or use {@link #hitsHandle}) before calling this.
      *
-     * @param x the center x position of the rectangle
-     * @param y the center y position of the rectangle
+     * @param x the center x position of the rectangle, in screen space
+     * @param y the center y position of the rectangle, in screen space
      * @return a rectangle the size of the handle.
      */
     protected Rect createHitRectangle(double x, double y) {
-        int ix = (int) x;
-        int iy = (int) y;
-        return new Rect(ix - HALF_HANDLE_SIZE, iy - HALF_HANDLE_SIZE, HANDLE_SIZE, HANDLE_SIZE);
+        return new Rect(x - HALF_HANDLE_SIZE, y - HALF_HANDLE_SIZE, HANDLE_SIZE, HANDLE_SIZE);
+    }
+
+    /**
+     * Test whether the cursor is within grab range of a handle drawn at the given document point.
+     * Both the handle position and the cursor are projected to screen space, so the grab area is
+     * a constant size on screen regardless of zoom.
+     *
+     * @param worldX     the handle's document x position
+     * @param worldY     the handle's document y position
+     * @param worldMouse the cursor position, in document space
+     * @return true if the cursor is over the handle.
+     */
+    protected boolean hitsHandle(double worldX, double worldY, Point worldMouse) {
+        Point sh = toScreen(worldX, worldY);
+        Point sm = toScreen(worldMouse);
+        return createHitRectangle(sh.x, sh.y).contains(sm);
     }
 
 }
