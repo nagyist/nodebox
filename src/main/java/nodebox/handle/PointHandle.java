@@ -3,7 +3,6 @@ package nodebox.handle;
 import nodebox.graphics.Color;
 import nodebox.graphics.GraphicsContext;
 import nodebox.graphics.Point;
-import nodebox.graphics.Rect;
 
 public class PointHandle extends AbstractHandle {
 
@@ -33,8 +32,8 @@ public class PointHandle extends AbstractHandle {
 
 
     public void draw(GraphicsContext ctx) {
-        Point pt = (Point) getValue(positionName);
-        drawDot(ctx, (float) pt.x, (float) pt.y);
+        Point pt = toScreen((Point) getValue(positionName));
+        drawDot(ctx, pt.x, pt.y);
     }
 
     @Override
@@ -45,8 +44,7 @@ public class PointHandle extends AbstractHandle {
         ox = op.x;
         oy = op.y;
 
-        Rect hitRect = createHitRectangle(ox, oy);
-        dragging = hitRect.contains(pt);
+        dragging = hitsHandle(ox, oy, pt);
         return dragging;
     }
 

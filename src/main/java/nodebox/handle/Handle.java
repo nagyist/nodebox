@@ -18,6 +18,18 @@ public interface Handle {
 
     public boolean isVisible();
 
+    /**
+     * Inform the handle of the current view transform (document -> screen).
+     * <p/>
+     * Handles draw and hit-test in screen space: they project the document coordinates they
+     * receive through this transform, then draw their decorations at a constant pixel size.
+     *
+     * @param viewX     The horizontal view offset, in screen pixels.
+     * @param viewY     The vertical view offset, in screen pixels.
+     * @param viewScale The current view scale (1.0 = 100%).
+     */
+    public void setViewTransform(double viewX, double viewY, double viewScale);
+
     //// Mouse events ////
 
     public boolean mouseClicked(Point pt);

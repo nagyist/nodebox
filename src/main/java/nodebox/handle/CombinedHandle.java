@@ -21,6 +21,13 @@ public class CombinedHandle extends AbstractHandle {
             handle.setHandleDelegate(delegate);
     }
 
+    @Override
+    public void setViewTransform(double viewX, double viewY, double viewScale) {
+        super.setViewTransform(viewX, viewY, viewScale);
+        for (Handle handle : handles)
+            handle.setViewTransform(viewX, viewY, viewScale);
+    }
+
     public void addHandle(Handle handle) {
         handles.add(handle);
     }

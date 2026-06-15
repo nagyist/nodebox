@@ -25,9 +25,10 @@ public class FreehandHandle extends AbstractHandle {
 
     public void draw(GraphicsContext ctx) {
         if (currentPoint == null) return;
+        Point c = toScreen(currentPoint);
         ctx.nofill();
         ctx.stroke(0.5f);
-        ctx.ellipse(currentPoint.x - 5, currentPoint.y - 5, 10, 10);
+        ctx.ellipse(c.x - 5, c.y - 5, 10, 10);
     }
 
     @Override

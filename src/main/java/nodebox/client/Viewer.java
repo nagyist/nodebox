@@ -100,6 +100,14 @@ public class Viewer extends ZoomableView implements OutputView, Zoom, MouseListe
         repaint();
     }
 
+    @Override
+    protected void onViewTransformChanged(double viewX, double viewY, double viewScale) {
+        // Keep the handle's transform current so hit-testing is correct immediately after a
+        // zoom or pan, before the next repaint. Drawing also refreshes it in paintHandle.
+        if (handle != null)
+            handle.setViewTransform(viewX, viewY, viewScale);
+    }
+
     public void updateHandle() {
         if (handle == null) return;
         handle.update();
@@ -277,7 +285,6 @@ public class Viewer extends ZoomableView implements OutputView, Zoom, MouseListe
 
         paintBounds(g2);
         paintObjects(g2);
-        paintHandle(g2);
         paintPoints(g2);
         paintPointNumbers(g2);
 
@@ -286,6 +293,9 @@ public class Viewer extends ZoomableView implements OutputView, Zoom, MouseListe
         g2.setTransform(originalTransform);
         g2.setStroke(new BasicStroke(1));
 
+        // Handles are drawn in screen space (outside the view transform). They project the
+        // document coordinates they operate on, so their decorations stay a constant pixel size.
+        paintHandle(g2);
         paintOrigin(g2);
     }
 
@@ -360,8 +370,15 @@ public class Viewer extends ZoomableView implements OutputView, Zoom, MouseListe
 
     public void paintHandle(Graphics2D g) {
         if (hasVisibleHandle()) {
-            // Create a canvas with a transparent background.
-            nodebox.graphics.Canvas canvas = new nodebox.graphics.Canvas();
+            // Refresh the handle's view transform before drawing. This also covers view changes
+            // that don't fire onViewTransformChanged (e.g. the first-paint setViewPosition).
+            handle.setViewTransform(getViewX(), getViewY(), getViewScale());
+            // Create a canvas with a transparent background. Handles draw in screen space, so the
+            // canvas must cover the whole viewport (Canvas.draw clips to its bounds). Size it to
+            // the component and offset it so its bounds are (0, 0, width, height) in screen space.
+            nodebox.graphics.Canvas canvas = new nodebox.graphics.Canvas(getWidth(), getHeight());
+            canvas.setOffsetX(getWidth() / 2.0);
+            canvas.setOffsetY(getHeight() / 2.0);
             canvas.setBackground(new nodebox.graphics.Color(0, 0, 0, 0));
             CanvasContext ctx = new CanvasContext(canvas);
             try {
